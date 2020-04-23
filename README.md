@@ -1,13 +1,3 @@
-# 关于Spring常见相关问题
-1. Controller、RestController的区别？
-
-2. ResponseBody干嘛用的？
-
-3. 找不到bean实例怎么办？
-
-4. 扫描不到jar包内部package时，怎么办？
-* 检查包名是否一致，比如spring boot 启动类com.sinoservice.wms.WmsServerApplication里面配置scanBasePackageClasses = WmsServerApplication.class，而预期效果是想扫描com.sinoservices.wms包里面的组件，此时两个包名就不一致，com.sinoservice.wms比com.sinoservices.wms少了个s
-
 # Spring MVC 源码解析
 ## DispatcherServlet 源码解析
 > 类继承关系
