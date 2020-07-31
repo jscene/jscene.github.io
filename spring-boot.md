@@ -1,5 +1,7 @@
 # Spring Boot 源码解析 (版本2.3.x)
 
+阅读指南: 通篇文章使用先总后分的形式，读者可以根据里面的链接跳转到对应章节阅读具体内容。
+
 ## 启动原理分析
 
 > Main方法启动
@@ -41,24 +43,6 @@
 * listeners.started 触发started事件，默认触发[EventPublishingRunListener](#EventPublishingRunListener)
 * callRunners 扩展点之一，用于工程启动完成之后执行的
 
-### prepareContext
-
-![](images/prepareContext.png)
-
-* context.setEnvironment 设置上下文环境
-* postProcessApplicationContext 
-* applyInitializers 调用 [ApplicationContextInitializer](#ApplicationContextInitializer)
-* listeners.contextPrepared 触发 [ApplicationContextInitializedEvent](#EventPublishingRunListener)
-* 将applicationArguments注册为spring Bean实例，应用可以通过实例名springApplicationArguments获取
-* 将printedBanner注册为Spring Bean实例， 应用可以通过实例名springBootBanner获取
-* 设置allowBeanDefinitionOverriding，若设置为true则允许同名实例进行覆盖，由spring.main.allow-bean-definition-overriding进行设置
-* lazyInitialization 是否延迟初始化
-* load 通过 [BeanDefinitionLoader](#BeanDefinitionLoader) 扫描Bean
-* listeners.contextLoaded 触发 [ApplicationPreparedEvent](#EventPublishingRunListener)
-
-### refreshContext
-
-
 ### SpringFactoriesLoader
 
 > ps: 对于不清楚什么是SPI机制的可自行百度 "JAVA SPI"
@@ -73,7 +57,55 @@ Spring SPI配置文件位于类路径下的META-INF/spring.factories
 
 ### ConfigurationPropertySources
 
+TODO
+
+### ConfigFileApplicationListener
+
+TODO
+
+### Binder
+
+TODO
+
 ### SpringBootExceptionReporter
+
+TODO
+
+### prepareContext
+
+![](images/prepareContext.png)
+
+* context.setEnvironment 设置上下文环境
+* postProcessApplicationContext 
+* applyInitializers 调用 [ApplicationContextInitializer](#ApplicationContextInitializer)
+* listeners.contextPrepared 触发 [ApplicationContextInitializedEvent](#EventPublishingRunListener)
+* 将applicationArguments注册为spring Bean实例，应用可以通过实例名springApplicationArguments获取
+* 将printedBanner注册为Spring Bean实例， 应用可以通过实例名springBootBanner获取
+* 设置allowBeanDefinitionOverriding，若设置为true则允许同名实例进行覆盖，由spring.main.allow-bean-definition-overriding进行设置
+* lazyInitialization 是否延迟初始化
+* load 通过 BeanDefinitionLoader 将从外部传进来的primarySources注册为Spring Bean
+* listeners.contextLoaded 触发 [ApplicationPreparedEvent](#EventPublishingRunListener)
+
+### refreshContext
+
+> refreshContext 与传统通过xml配置spring一样都是通过调用AbstractApplicationContext中的refresh方法启动ApplicationContext，所以refreshContext实际就是将启动托付给 [Spring](spring.md) 进行。
+
+![](images/AbstractApplicationContextRefresh.png)
+
+这里重点看onRefresh方法，由 [AnnotationConfigServletWebServerApplicationContext](#AnnotationConfigServletWebServerApplicationContext) 重写，通过createWebServer实现内嵌web容器创建，这也是为什么spring boot可以不用部署在外边容器，而可以直接以jar包形式运行。
+
+详情点击 [AnnotationConfigServletWebServerApplicationContext](#AnnotationConfigServletWebServerApplicationContext)
+
+### ApplicationContextInitializer
+
+> Spring Boot自带的实现如下:  
+* org.springframework.boot.context.config.DelegatingApplicationContextInitializer 
+* org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer 
+* org.springframework.boot.context.ContextIdApplicationContextInitializer
+* org.springframework.boot.context.ConfigurationWarningsApplicationContextInitializer
+* org.springframework.boot.rsocket.context.RSocketPortInfoApplicationContextInitializer
+* org.springframework.boot.web.context.ServerPortInfoApplicationContextInitializer
+* org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener
 
 ### EventPublishingRunListener
 
@@ -123,21 +155,50 @@ Spring SPI配置文件位于类路径下的META-INF/spring.factories
 | running | ApplicationReadyEvent | BackgroundPreinitializer |
 | failed | ApplicationFailedEvent | ClasspathLoggingApplicationListener、LoggingApplicationListener、BackgroundPreinitializer |
 
-### ConfigFileApplicationListener
 
-121
+### AnnotationConfigServletWebServerApplicationContext
 
-### ApplicationContextInitializer
+> 如下为AnnotationConfigServletWebServerApplicationContext的继承关系图，红框里面为核心实现类
 
-> Spring Boot自带的实现如下:  
-* org.springframework.boot.context.config.DelegatingApplicationContextInitializer 
-* org.springframework.boot.autoconfigure.SharedMetadataReaderFactoryContextInitializer 
-* org.springframework.boot.context.ContextIdApplicationContextInitializer
-* org.springframework.boot.context.ConfigurationWarningsApplicationContextInitializer
-* org.springframework.boot.rsocket.context.RSocketPortInfoApplicationContextInitializer
-* org.springframework.boot.web.context.ServerPortInfoApplicationContextInitializer
-* org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener
+![](images/AnnotationConfigServletWebServerApplicationContext.png)
 
-### BeanDefinitionLoader
+ServletWebServerApplicationContext为AnnotationConfigServletWebServerApplicationContext的父类，该上下文重写了onRefresh方法，从而实现内嵌web容器创建  
 
-### Binder
+![](images/ServletWebServerApplicationContextOnRefresh.png)
+
+![](images/createWebServer.png)
+
+* getServletContext 获取ServletContext,首次为空
+* getWebServerFactory 获取 [ServletWebServerFactory](#ServletWebServerFactory)，默认获取到TomcatServletWebServerFactory
+* getWebServer 通过ServletWebServerFactory获取Web容器，默认为TomcatWebServer，此时Web容器已经启动完成
+* getSelfInitializer 如下图，getSelfInitializer与selfInitialize的写法为lambda表达式，简化了匿名内部类实现，selfInitialize即为ServletContextInitializer方法中的onStartup实现，被调用的时机是在TomcatWebServer创建的时候被调用  
+![](images/getSelfInitializer.png)
+* prepareWebApplicationContext 将当前上下文设置到ServletContext中
+* registerApplicationScope 将ServletContext注册为"application"全局作用域ServletContextScope，并且反向设置为ServletContext的attribute中，以便ContextCleanupListener管理销毁
+* WebApplicationContextUtils.registerEnvironmentBeans 将Servlet运行环境注册到Spring中以便程序使用，比如通过实例名"contextParameters","contextAttributes"获取对应参数实例
+* beans.onStartup 调用ServletContextInitializer的onStartup方法，此处扫描ServletRegistrationBean、FilterRegistrationBean、DelegatingFilterProxyRegistrationBean、ServletListenerRegistrationBean及其他自定义ServletContextInitializer，详情可查看ServletContextInitializerBeans
+
+### ServletWebServerFactory
+
+ServletWebServerFactory通过ServletWebServerFactoryConfiguration进行配置
+
+![](images/ServletWebServerFactoryConfiguration.png)
+
+Spring Boot官方提供三种内嵌Web容器: Tomcat、Jetty、Undertow，且默认为Tomcat，可通过maven配置启用其他容器，比如启用Jetty:  
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+    <exclusions>
+        <exclusion>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jetty</artifactId>
+</dependency>
+```
