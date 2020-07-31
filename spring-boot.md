@@ -69,7 +69,13 @@ TODO
 
 ### SpringBootExceptionReporter
 
-TODO
+org.springframework.boot.autoconfigure.data.redis.RedisUrlSyntaxFailureAnalyzer
+org.springframework.boot.autoconfigure.diagnostics.analyzer.NoSuchBeanDefinitionFailureAnalyzer
+org.springframework.boot.autoconfigure.flyway.FlywayMigrationScriptMissingFailureAnalyzer
+org.springframework.boot.autoconfigure.jdbc.DataSourceBeanCreationFailureAnalyzer
+org.springframework.boot.autoconfigure.jdbc.HikariDriverConfigurationFailureAnalyzer
+org.springframework.boot.autoconfigure.r2dbc.ConnectionFactoryBeanCreationFailureAnalyzer
+org.springframework.boot.autoconfigure.session.NonUniqueSessionRepositoryFailureAnalyzer
 
 ### prepareContext
 
