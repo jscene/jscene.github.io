@@ -61,11 +61,98 @@ TODO
 
 ### ConfigFileApplicationListener
 
-TODO
+实现配置文件加载，Profile属性加载等。
+
+![](images/loadPostProcessors.png)
+
+默认的EnvironmentPostProcessor包括: 执行顺序为 ↓  
+* SystemEnvironmentPropertySourceEnvironmentPostProcessor 封装systemEnvironment为OriginAwareSystemEnvironmentPropertySource，用于程序异常报错时，定位报错属性。详细可参考TextResourceOrigin、PropertySourceOrigin、OriginTrackedPropertiesLoader等。
+* SpringApplicationJsonEnvironmentPostProcessor jvm启动参数设置spring.application.json传json格式配置，或者环境变量添加SPRING_APPLICATION_JSON来设置spring boot配置
+* CloudFoundryVcapEnvironmentPostProcessor 运行环境为 [Cloud Foundry](https://www.cloudfoundry.org/)(开源PaaS私有云平台) 时相关配置
+* ConfigFileApplicationListener(自身)
+* DebugAgentEnvironmentPostProcessor 响应式模式调试代理层，默认如果找到reactor.tools.agent.ReactorDebugAgent则开启，可以通过设置spring.reactor.debug-agent.enabled为false进行关闭
+
+通过addPropertySources方法创建Loader实例并调用load方法(<font color=#F08080 size=5>核心方法</font>)  
+
+![](images/load.png)
+
+* FilteredPropertySource.apply //TODO 暂时还没完全理解用处。。。
+* initializeProfiles 初始化Profile
+* load 根据 规则 查找加载配置文件， 规则如下: 
+  * classpath:/ 类路径
+  * classpath:/config/ 类路径下的config文件夹
+  * file:./ jar包所在目录
+  * file:./config/*/ jar包所在路径下的config文件夹
+  * file:./config/ jar包所在路径下的config文件夹
+
+> 配置相关属性:  
+* spring.config.additional-location 可增加额外配置路径，比如除了想加载默认application.properties，还想加载自定义的properties则可以通过设置该参数进行扩展
+* spring.config.location 若上面的读取规则无法满足需要，则可以自行定义读取规则，比如外置配置文件实现配置分离
+* spring.config.name 自定义配置文件名，比如读取module.properties则配置为module，若想配置多个则用","分隔
+
+> 关于jdk1.8 lambda写法
+```
+load(profile, this::getPositiveProfileFilter, addToLoaded(MutablePropertySources::addLast, false));
+load(null, this::getNegativeProfileFilter, addToLoaded(MutablePropertySources::addFirst, true));
+
+private void load(Profile profile, DocumentFilterFactory filterFactory, DocumentConsumer consumer) {
+	// do something...
+}
+private DocumentFilter getPositiveProfileFilter(Profile profile) {
+	// do something
+}
+private DocumentFilter getNegativeProfileFilter(Profile profile) {
+	// do something
+}
+```
+> 一开始对于这种写法还是比较迷惑，load的第二个参数明明是需要传入DocumentFilterFactory类型参数，而getPositiveProfileFilter及getNegativeProfileFilter都是返回的DocumentFilter，怎么传得进去?  
+
+> 解答: 
+```
+@FunctionalInterface
+private interface DocumentFilterFactory {
+	DocumentFilter getDocumentFilter(Profile profile);
+}
+```
+DocumentFilterFactory只有一个getDocumentFilter接口，而这个接口的构造跟而getPositiveProfileFilter及getNegativeProfileFilter是一样的，所以这里的this::getPositiveProfileFilter，this::getNegativeProfileFilter实际就是将这两个方法当成一个匿名DocumentFilterFactory实现类传进去，
+有点像javascript中的回调函数。
+```
+//定义回调方法
+var callback = function() {
+//do something
+}
+//调用回调方法
+var doCall = function(callback) {
+	callback = callback || function(){};
+	callback();
+}
+//将回调方法当成参数传进去
+doCall(callback);
+```
 
 ### Binder
 
-TODO
+Spring Boot 2.x新的属性绑定方式。
+
+```
+DemoProperties properties = Binder.get(environment).bind("demo", Bindable.of(DemoProperties.class)).get();
+
+```
+application.properties配置  
+```
+demo.count=10000
+demo.name=test
+```
+Bindable使用详解
+```
+Bindable.ofInstance(T instance) //将属性配置设置到当前实例(instance)中
+Bindable.of(Class<T> type) //将属性配置到type类型实例中，通过get方法获取该实例
+Bindable.listOf(Class<E> elementType) //将属性配置设置到list中，通过get方法获取该list
+Bindable.setOf(Class<E> elementType) //将属性配置设置到set中，通过get方法获取该set
+Bindable.mapOf(Class<K> keyType, Class<V> valueType) //将属性配置设置到map中，通过get方法获取该map
+Bindable.of(ResolvableType type) 
+```
+> 属性绑定的大体逻辑: 先根据属性名去environment中查找对应的属性，若找不到则通过遍历迭代的方式，去查找所有的属性并拼接出合适的属性名到environment中进行查找，若找到则设置到对应变量中。详细可查看Binder.bindDataObject方法。
 
 ### SpringBootExceptionReporter
 
