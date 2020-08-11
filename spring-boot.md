@@ -91,6 +91,7 @@ TODO
 * spring.config.name 自定义配置文件名，比如读取module.properties则配置为module，若想配置多个则用","分隔
 
 > 关于jdk1.8 lambda写法
+
 ```
 load(profile, this::getPositiveProfileFilter, addToLoaded(MutablePropertySources::addLast, false));
 load(null, this::getNegativeProfileFilter, addToLoaded(MutablePropertySources::addFirst, true));
@@ -128,6 +129,51 @@ var doCall = function(callback) {
 }
 //将回调方法当成参数传进去
 doCall(callback);
+```
+
+> 关于BiConsumer用法
+
+问题描述: addToLoaded(MutablePropertySources::addLast, false)方法体中使用addMethod.accept(merged, document.getPropertySource());调用MutablePropertySources::addLast方法，但是accept需要传参两个，而addLast只需要传一个参数，这是为啥？？？  
+
+> 解答: 看如下例子，如注释中说的 "虽然addLast方法只接受一个参数，而BiConsumer.accept接受两个参数，第一个参数为MyConsumer实例，第二个参数为实际入参，即等价为myConsumer.addLast(54)"
+
+```
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
+
+public class MyConsumer {
+
+    private List<Integer> list = new ArrayList<>();
+
+    public MyConsumer() {}
+
+    public MyConsumer(List<Integer> list) {
+        this.list = list;
+    }
+
+    public void addLast(int i) {
+        list.add(i);
+    }
+
+    public List<Integer> getList() {
+        return list;
+    }
+
+    public void setList(List<Integer> list) {
+        this.list = list;
+    }
+
+    public static void main(String[] args) {
+        BiConsumer<MyConsumer, Integer> biConsumer = MyConsumer::addLast;
+
+        MyConsumer myConsumer = new MyConsumer();
+        myConsumer.addLast(1);
+        System.out.println(myConsumer.getList());  //输出[1]
+        biConsumer.accept(myConsumer, 54); //虽然addLast方法只接受一个参数，而BiConsumer.accept接受两个参数，第一个参数为MyConsumer实例，第二个参数为实际入参，即等价为myConsumer.addLast(54)
+        System.out.println(myConsumer.getList()); //输出[1, 54]
+    }
+}
 ```
 
 ### Binder
